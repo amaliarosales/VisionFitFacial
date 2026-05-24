@@ -1,16 +1,12 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>VisionFit Facial Yoga v1.0</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VisionFit Facial Yoga</title>
+    <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
-    <style>
-        body { font-family: sans-serif; background-color: #0f0f12; color: white; text-align: center; }
-        .capture-zone { max-width: 640px; margin: 0 auto; }
-        #output_canvas { width: 100%; border-radius: 12px; }
-        .stat-box { background: #222230; padding: 10px; margin: 5px; display: inline-block; border-radius: 8px; }
-    </style>
 </head>
 <body>
     <h1>VisionFit Facial Yoga ⚡</h1>
@@ -18,67 +14,10 @@
         <select id="exercise-selector"></select>
         <div class="stat-box"><span id="val-reps">0</span><br>REPS</div>
         <div class="video-container">
-            <video id="webcam" autoplay playsinline style="display:none;"></video>
+            <video id="webcam" style="display:none;"></video>
             <canvas id="output_canvas" width="640" height="480"></canvas>
         </div>
     </div>
-
-    <script>
-        const videoElement = document.getElementById('webcam');
-        const canvasElement = document.getElementById('output_canvas');
-        const canvasCtx = canvasElement.getContext('2d');
-        const exerciseSelector = document.getElementById('exercise-selector');
-        const txtReps = document.getElementById('val-reps');
-        
-        let reps = 0;
-        let isMoving = false;
-        let currentExercise = "smile";
-
-        // Ejercicios Faciales
-        const exercises = {
-            smile: "Smile (Sonrisa)",
-            mouth_open: "Open Mouth (Abrir Boca)",
-            eyebrows: "Raise Eyebrows (Cejas Arriba)"
-        };
-
-        Object.keys(exercises).forEach(key => {
-            let opt = document.createElement('option');
-            opt.value = key; opt.innerText = exercises[key];
-            exerciseSelector.appendChild(opt);
-        });
-
-        exerciseSelector.addEventListener('change', () => { currentExercise = exerciseSelector.value; reps = 0; txtReps.innerText = "0"; });
-
-        function onResults(results) {
-            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
-
-            if (results.multiFaceLandmarks) {
-                for (const landmarks of results.multiFaceLandmarks) {
-                    // Lógica para detectar movimientos
-                    if (currentExercise === "smile") {
-                        const mouthWidth = Math.abs(landmarks[61].x - landmarks[291].x);
-                        if (mouthWidth > 0.35 && !isMoving) { reps++; txtReps.innerText = reps; isMoving = true; }
-                        if (mouthWidth < 0.25) isMoving = false;
-                    } 
-                    else if (currentExercise === "mouth_open") {
-                        const mouthHeight = Math.abs(landmarks[13].y - landmarks[14].y);
-                        if (mouthHeight > 0.05 && !isMoving) { reps++; txtReps.innerText = reps; isMoving = true; }
-                        if (mouthHeight < 0.02) isMoving = false;
-                    }
-                }
-            }
-        }
-
-        const faceMesh = new FaceMesh({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`});
-        faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true });
-        faceMesh.onResults(onResults);
-
-        const camera = new Camera(videoElement, {
-            onFrame: async () => { await faceMesh.send({ image: videoElement }); },
-            width: 640, height: 480
-        });
-        camera.start();
-    </script>
+    <script src="script.js"></script>
 </body>
 </html>
