@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>VisionFit Facial Yoga v1.0</title>
+    <title>VisionFit Facial Yoga</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
@@ -11,87 +11,92 @@
         body { font-family: sans-serif; background-color: #0f0f12; color: white; text-align: center; }
         .capture-zone { max-width: 640px; margin: 0 auto; }
         #output_canvas { width: 100%; border-radius: 12px; background: #000; }
-        .stat-box { background: #222230; padding: 10px; margin: 5px; display: inline-block; border-radius: 8px; }
-        select { padding: 10px; border-radius: 5px; background: #333; color: white; }
+        .controls { margin: 15px; }
+        button { padding: 10px 20px; cursor: pointer; border-radius: 5px; border: none; font-weight: bold; }
+        #btn-start { background: #28a745; color: white; }
+        #btn-stop { background: #dc3545; color: white; }
+        #history { margin-top: 20px; background: #222; padding: 10px; border-radius: 8px; text-align: left; }
     </style>
 </head>
 <body>
     <h1>VisionFit Facial Yoga ⚡</h1>
     <div class="capture-zone">
         <select id="exercise-selector"></select>
-        <div class="stat-box"><span id="val-reps">0</span><br>REPS</div>
-        <div class="video-container">
-            <video id="webcam" autoplay playsinline style="display:none;"></video>
-            <canvas id="output_canvas" width="640" height="480"></canvas>
+        <div class="controls">
+            <button id="btn-start">Iniciar</button>
+            <button id="btn-stop">Detener</button>
         </div>
+        <div class="stat-box">REPS: <span id="val-reps">0</span></div>
+        <canvas id="output_canvas" width="640" height="480"></canvas>
+        <div id="history"><h3>Historial:</h3><ul id="log"></ul></div>
     </div>
 
     <script>
-        const videoElement = document.getElementById('webcam');
         const canvasElement = document.getElementById('output_canvas');
         const canvasCtx = canvasElement.getContext('2d');
-        const exerciseSelector = document.getElementById('exercise-selector');
         const txtReps = document.getElementById('val-reps');
+        const log = document.getElementById('log');
         
-        let reps = 0;
-        let isMoving = false;
+        let reps = 0, isMoving = false, isRunning = false;
         let currentExercise = "smile";
+        const videoElement = document.createElement('video');
 
-        const exercises = {
-            smile: "Smile (Sonrisa)",
-            mouth_open: "Open Mouth (Abrir Boca)",
-            eyebrows: "Raise Eyebrows (Cejas Arriba)"
-        };
-
-        Object.keys(exercises).forEach(key => {
-            let opt = document.createElement('option');
-            opt.value = key; opt.innerText = exercises[key];
-            exerciseSelector.appendChild(opt);
+        const exercises = { smile: "Smile", mouth_open: "Open Mouth", eyebrows: "Raise Eyebrows" };
+        const selector = document.getElementById('exercise-selector');
+        Object.keys(exercises).forEach(k => {
+            let opt = document.createElement('option'); opt.value = k; opt.innerText = exercises[k];
+            selector.appendChild(opt);
         });
 
-        exerciseSelector.addEventListener('change', () => { currentExercise = exerciseSelector.value; reps = 0; txtReps.innerText = "0"; });
+        selector.addEventListener('change', () => { currentExercise = selector.value; reps = 0; txtReps.innerText = "0"; });
 
-        function onResults(results) {
-            canvasCtx.save();
-            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
-
-            if (results.multiFaceLandmarks) {
-                for (const landmarks of results.multiFaceLandmarks) {
-                    // Dibujar los puntos (la red)
-                    drawConnectors(canvasCtx, landmarks, FACEMESH_TESSELATION, {color: '#C0C0C070', lineWidth: 1});
-                    
-                    // Lógica de detección
-                    if (currentExercise === "smile") {
-                        const mouthWidth = Math.abs(landmarks[61].x - landmarks[291].x);
-                        if (mouthWidth > 0.35 && !isMoving) { reps++; txtReps.innerText = reps; isMoving = true; }
-                        if (mouthWidth < 0.25) isMoving = false;
-                    } 
-                    else if (currentExercise === "mouth_open") {
-                        const mouthHeight = Math.abs(landmarks[13].y - landmarks[14].y);
-                        if (mouthHeight > 0.05 && !isMoving) { reps++; txtReps.innerText = reps; isMoving = true; }
-                        if (mouthHeight < 0.02) isMoving = false;
-                    }
-                    else if (currentExercise === "eyebrows") {
-                        const avgEyebrowY = (landmarks[70].y + landmarks[300].y) / 2;
-                        const noseY = landmarks[6].y;
-                        if ((noseY - avgEyebrowY) > 0.08 && !isMoving) { reps++; txtReps.innerText = reps; isMoving = true; }
-                        if ((noseY - avgEyebrowY) < 0.04) isMoving = false;
-                    }
-                }
+        function detect(landmarks) {
+            if (!isRunning) return;
+            
+            if (currentExercise === "smile") {
+                const w = Math.abs(landmarks[61].x - landmarks[291].x);
+                if (w > 0.30 && !isMoving) { reps++; txtReps.innerText = reps; isMoving = true; }
+                if (w < 0.22) isMoving = false;
+            } else if (currentExercise === "mouth_open") {
+                const h = Math.abs(landmarks[13].y - landmarks[14].y);
+                if (h > 0.04 && !isMoving) { reps++; txtReps.innerText = reps; isMoving = true; }
+                if (h < 0.015) isMoving = false;
+            } else if (currentExercise === "eyebrows") {
+                const eyebrowY = (landmarks[70].y + landmarks[300].y) / 2;
+                const noseY = landmarks[6].y;
+                if ((noseY - eyebrowY) > 0.06 && !isMoving) { reps++; txtReps.innerText = reps; isMoving = true; }
+                if ((noseY - eyebrowY) < 0.03) isMoving = false;
             }
-            canvasCtx.restore();
         }
 
         const faceMesh = new FaceMesh({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`});
-        faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true });
-        faceMesh.onResults(onResults);
+        faceMesh.onResults(results => {
+            canvasCtx.clearRect(0, 0, 640, 480);
+            canvasCtx.drawImage(results.image, 0, 0, 640, 480);
+            if (results.multiFaceLandmarks) {
+                for (const landmarks of results.multiFaceLandmarks) {
+                    drawConnectors(canvasCtx, landmarks, FACEMESH_TESSELATION, {color: '#ffffff30', lineWidth: 1});
+                    detect(landmarks);
+                }
+            }
+        });
 
         const camera = new Camera(videoElement, {
             onFrame: async () => { await faceMesh.send({ image: videoElement }); },
             width: 640, height: 480
         });
-        camera.start();
+
+        document.getElementById('btn-start').onclick = () => { isRunning = true; camera.start(); };
+        document.getElementById('btn-stop').onclick = () => { 
+            isRunning = false; 
+            camera.stop(); 
+            if(reps > 0) {
+                let li = document.createElement('li');
+                li.innerText = `${exercises[currentExercise]}: ${reps} reps - ${new Date().toLocaleTimeString()}`;
+                log.appendChild(li);
+                reps = 0; txtReps.innerText = "0";
+            }
+        };
     </script>
 </body>
 </html>
