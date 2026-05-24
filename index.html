@@ -51,26 +51,42 @@
 
         exerciseSelector.addEventListener('change', () => { currentExercise = exerciseSelector.value; reps = 0; txtReps.innerText = "0"; });
 
-        function onResults(results) {
-            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+function onResults(results) {
+    canvasCtx.save();
+    canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+    canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
 
-            if (results.multiFaceLandmarks) {
-                for (const landmarks of results.multiFaceLandmarks) {
-                    // Lógica para detectar movimientos
-                    if (currentExercise === "smile") {
-                        const mouthWidth = Math.abs(landmarks[61].x - landmarks[291].x);
-                        if (mouthWidth > 0.35 && !isMoving) { reps++; txtReps.innerText = reps; isMoving = true; }
-                        if (mouthWidth < 0.25) isMoving = false;
-                    } 
-                    else if (currentExercise === "mouth_open") {
-                        const mouthHeight = Math.abs(landmarks[13].y - landmarks[14].y);
-                        if (mouthHeight > 0.05 && !isMoving) { reps++; txtReps.innerText = reps; isMoving = true; }
-                        if (mouthHeight < 0.02) isMoving = false;
-                    }
+    if (results.multiFaceLandmarks) {
+        for (const landmarks of results.multiFaceLandmarks) {
+            // 1. Dibujar los puntos faciales (requiere drawing_utils.js)
+            drawConnectors(canvasCtx, landmarks, FACEMESH_TESSELATION, {color: '#C0C0C070', lineWidth: 1});
+            
+            // 2. Lógica para detectar movimientos
+            if (currentExercise === "smile") {
+                const mouthWidth = Math.abs(landmarks[61].x - landmarks[291].x);
+                if (mouthWidth > 0.35 && !isMoving) { reps++; txtReps.innerText = reps; isMoving = true; }
+                if (mouthWidth < 0.25) isMoving = false;
+            } 
+            else if (currentExercise === "mouth_open") {
+                const mouthHeight = Math.abs(landmarks[13].y - landmarks[14].y);
+                if (mouthHeight > 0.05 && !isMoving) { reps++; txtReps.innerText = reps; isMoving = true; }
+                if (mouthHeight < 0.02) isMoving = false;
+            }
+            else if (currentExercise === "eyebrows") {
+                // Cálculo para cejas (distancia vertical entre cejas y nariz)
+                const avgEyebrowY = (landmarks[70].y + landmarks[300].y) / 2;
+                const noseY = landmarks[6].y;
+                if ((noseY - avgEyebrowY) > 0.08 && !isMoving) { 
+                    reps++; 
+                    txtReps.innerText = reps; 
+                    isMoving = true; 
                 }
+                if ((noseY - avgEyebrowY) < 0.04) isMoving = false;
             }
         }
+    }
+    canvasCtx.restore();
+}
 
         const faceMesh = new FaceMesh({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`});
         faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true });
