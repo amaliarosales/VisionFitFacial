@@ -1,18 +1,19 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
     <meta charset="UTF-8">
     <title>VisionFit Facial Yoga v1.0</title>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh_solution_packed_assets_loader.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    
     <style>
         body { font-family: sans-serif; background-color: #0f0f12; color: white; text-align: center; }
         .capture-zone { max-width: 640px; margin: 0 auto; }
-        #output_canvas { width: 100%; border-radius: 12px; }
+        #output_canvas { width: 100%; border-radius: 12px; background: #000; }
         .stat-box { background: #222230; padding: 10px; margin: 5px; display: inline-block; border-radius: 8px; }
+        select { padding: 10px; border-radius: 5px; background: #333; color: white; }
     </style>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
 </head>
 <body>
     <h1>VisionFit Facial Yoga ⚡</h1>
@@ -36,7 +37,6 @@
         let isMoving = false;
         let currentExercise = "smile";
 
-        // Ejercicios Faciales
         const exercises = {
             smile: "Smile (Sonrisa)",
             mouth_open: "Open Mouth (Abrir Boca)",
@@ -51,42 +51,37 @@
 
         exerciseSelector.addEventListener('change', () => { currentExercise = exerciseSelector.value; reps = 0; txtReps.innerText = "0"; });
 
-function onResults(results) {
-    canvasCtx.save();
-    canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-    canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+        function onResults(results) {
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
 
-    if (results.multiFaceLandmarks) {
-        for (const landmarks of results.multiFaceLandmarks) {
-            // 1. Dibujar los puntos faciales (requiere drawing_utils.js)
-            drawConnectors(canvasCtx, landmarks, FACEMESH_TESSELATION, {color: '#C0C0C070', lineWidth: 1});
-            
-            // 2. Lógica para detectar movimientos
-            if (currentExercise === "smile") {
-                const mouthWidth = Math.abs(landmarks[61].x - landmarks[291].x);
-                if (mouthWidth > 0.35 && !isMoving) { reps++; txtReps.innerText = reps; isMoving = true; }
-                if (mouthWidth < 0.25) isMoving = false;
-            } 
-            else if (currentExercise === "mouth_open") {
-                const mouthHeight = Math.abs(landmarks[13].y - landmarks[14].y);
-                if (mouthHeight > 0.05 && !isMoving) { reps++; txtReps.innerText = reps; isMoving = true; }
-                if (mouthHeight < 0.02) isMoving = false;
-            }
-            else if (currentExercise === "eyebrows") {
-                // Cálculo para cejas (distancia vertical entre cejas y nariz)
-                const avgEyebrowY = (landmarks[70].y + landmarks[300].y) / 2;
-                const noseY = landmarks[6].y;
-                if ((noseY - avgEyebrowY) > 0.08 && !isMoving) { 
-                    reps++; 
-                    txtReps.innerText = reps; 
-                    isMoving = true; 
+            if (results.multiFaceLandmarks) {
+                for (const landmarks of results.multiFaceLandmarks) {
+                    // Dibujar los puntos (la red)
+                    drawConnectors(canvasCtx, landmarks, FACEMESH_TESSELATION, {color: '#C0C0C070', lineWidth: 1});
+                    
+                    // Lógica de detección
+                    if (currentExercise === "smile") {
+                        const mouthWidth = Math.abs(landmarks[61].x - landmarks[291].x);
+                        if (mouthWidth > 0.35 && !isMoving) { reps++; txtReps.innerText = reps; isMoving = true; }
+                        if (mouthWidth < 0.25) isMoving = false;
+                    } 
+                    else if (currentExercise === "mouth_open") {
+                        const mouthHeight = Math.abs(landmarks[13].y - landmarks[14].y);
+                        if (mouthHeight > 0.05 && !isMoving) { reps++; txtReps.innerText = reps; isMoving = true; }
+                        if (mouthHeight < 0.02) isMoving = false;
+                    }
+                    else if (currentExercise === "eyebrows") {
+                        const avgEyebrowY = (landmarks[70].y + landmarks[300].y) / 2;
+                        const noseY = landmarks[6].y;
+                        if ((noseY - avgEyebrowY) > 0.08 && !isMoving) { reps++; txtReps.innerText = reps; isMoving = true; }
+                        if ((noseY - avgEyebrowY) < 0.04) isMoving = false;
+                    }
                 }
-                if ((noseY - avgEyebrowY) < 0.04) isMoving = false;
             }
+            canvasCtx.restore();
         }
-    }
-    canvasCtx.restore();
-}
 
         const faceMesh = new FaceMesh({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`});
         faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true });
