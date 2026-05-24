@@ -8,25 +8,29 @@
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
     
     <style>
-        body { font-family: sans-serif; background-color: #0f0f12; color: white; text-align: center; }
+        body { font-family: sans-serif; background-color: #0f0f12; color: white; text-align: center; margin: 0; padding: 20px; }
         .capture-zone { max-width: 640px; margin: 0 auto; }
-        #output_canvas { width: 100%; border-radius: 12px; background: #000; }
+        canvas { width: 100%; border-radius: 12px; background: #000; }
         .controls { margin: 15px; }
         button { padding: 10px 20px; cursor: pointer; border-radius: 5px; border: none; font-weight: bold; }
         #btn-start { background: #28a745; color: white; }
         #btn-stop { background: #dc3545; color: white; }
-        #history { margin-top: 20px; background: #222; padding: 10px; border-radius: 8px; text-align: left; }
+        #history { margin-top: 20px; background: #222; padding: 15px; border-radius: 8px; text-align: left; }
     </style>
 </head>
 <body>
     <h1>VisionFit Facial Yoga ⚡</h1>
     <div class="capture-zone">
-        <select id="exercise-selector"></select>
+        <select id="exercise-selector">
+            <option value="smile">Smile (Sonrisa)</option>
+            <option value="mouth_open">Open Mouth (Abrir Boca)</option>
+            <option value="eyebrows">Raise Eyebrows (Cejas Arriba)</option>
+        </select>
         <div class="controls">
             <button id="btn-start">Iniciar</button>
             <button id="btn-stop">Detener</button>
         </div>
-        <div class="stat-box">REPS: <span id="val-reps">0</span></div>
+        <div style="font-size: 1.5rem; margin: 10px;">REPS: <span id="val-reps">0</span></div>
         <canvas id="output_canvas" width="640" height="480"></canvas>
         <div id="history"><h3>Historial:</h3><ul id="log"></ul></div>
     </div>
@@ -36,17 +40,11 @@
         const canvasCtx = canvasElement.getContext('2d');
         const txtReps = document.getElementById('val-reps');
         const log = document.getElementById('log');
+        const selector = document.getElementById('exercise-selector');
         
         let reps = 0, isMoving = false, isRunning = false;
         let currentExercise = "smile";
         const videoElement = document.createElement('video');
-
-        const exercises = { smile: "Smile", mouth_open: "Open Mouth", eyebrows: "Raise Eyebrows" };
-        const selector = document.getElementById('exercise-selector');
-        Object.keys(exercises).forEach(k => {
-            let opt = document.createElement('option'); opt.value = k; opt.innerText = exercises[k];
-            selector.appendChild(opt);
-        });
 
         selector.addEventListener('change', () => { currentExercise = selector.value; reps = 0; txtReps.innerText = "0"; });
 
@@ -54,22 +52,27 @@
             if (!isRunning) return;
             
             if (currentExercise === "smile") {
+                // Distancia horizontal entre esquinas de la boca (puntos 61 y 291)
                 const w = Math.abs(landmarks[61].x - landmarks[291].x);
-                if (w > 0.30 && !isMoving) { reps++; txtReps.innerText = reps; isMoving = true; }
+                if (w > 0.28 && !isMoving) { reps++; txtReps.innerText = reps; isMoving = true; }
                 if (w < 0.22) isMoving = false;
             } else if (currentExercise === "mouth_open") {
+                // Distancia vertical labios (puntos 13 y 14)
                 const h = Math.abs(landmarks[13].y - landmarks[14].y);
-                if (h > 0.04 && !isMoving) { reps++; txtReps.innerText = reps; isMoving = true; }
-                if (h < 0.015) isMoving = false;
+                if (h > 0.03 && !isMoving) { reps++; txtReps.innerText = reps; isMoving = true; }
+                if (h < 0.01) isMoving = false;
             } else if (currentExercise === "eyebrows") {
+                // Diferencia entre la altura de las cejas y la nariz
                 const eyebrowY = (landmarks[70].y + landmarks[300].y) / 2;
                 const noseY = landmarks[6].y;
-                if ((noseY - eyebrowY) > 0.06 && !isMoving) { reps++; txtReps.innerText = reps; isMoving = true; }
-                if ((noseY - eyebrowY) < 0.03) isMoving = false;
+                // Si la diferencia es mayor, las cejas están arriba
+                if ((noseY - eyebrowY) > 0.05 && !isMoving) { reps++; txtReps.innerText = reps; isMoving = true; }
+                if ((noseY - eyebrowY) < 0.02) isMoving = false;
             }
         }
 
         const faceMesh = new FaceMesh({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`});
+        faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true });
         faceMesh.onResults(results => {
             canvasCtx.clearRect(0, 0, 640, 480);
             canvasCtx.drawImage(results.image, 0, 0, 640, 480);
@@ -88,14 +91,14 @@
 
         document.getElementById('btn-start').onclick = () => { isRunning = true; camera.start(); };
         document.getElementById('btn-stop').onclick = () => { 
+            if(isRunning && reps > 0) {
+                let li = document.createElement('li');
+                li.innerText = `${selector.options[selector.selectedIndex].text}: ${reps} reps - ${new Date().toLocaleTimeString()}`;
+                log.appendChild(li);
+            }
             isRunning = false; 
             camera.stop(); 
-            if(reps > 0) {
-                let li = document.createElement('li');
-                li.innerText = `${exercises[currentExercise]}: ${reps} reps - ${new Date().toLocaleTimeString()}`;
-                log.appendChild(li);
-                reps = 0; txtReps.innerText = "0";
-            }
+            reps = 0; txtReps.innerText = "0";
         };
     </script>
 </body>
